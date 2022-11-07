@@ -6,11 +6,16 @@ OPENMP = -fopenmp
 MPI = 
 CFLAGS = 
 LIBS = -lm
+NVCC = nvcc
+NVCCFLAGS = -O3 -arch=compute_35 -code=sm_35 -gencode arch=compute_35,code=[compute_35,sm_35] -gencode arch=compute_61,code=[compute_61,sm_61]
 
 
 TARGETS = serial openmp autograder
 
 all:	$(TARGETS)
+
+gpu: gpu.o common.o bin_grid.o
+	$(NVCC) -o $@ $(NVCCLIBS) gpu.o common.o bin_grid.o 
 
 serial: serial.o common.o bin_grid.o
 	$(CC) -o $@ serial.o common.o bin_grid.o -lm
@@ -20,6 +25,9 @@ openmp: openmp.o common.o
 	$(CC) -o $@ $(OPENMP) openmp.o common.o -lm
 mpi: mpi.o common.o
 	$(MPCC) -o $@ $(MPILIBS) mpi.o common.o -lm
+
+gpu.o: gpu.cu common.h
+	$(CC) -c $(NVCCFLAGS) gpu.cu
 
 autograder.o: autograder.cpp common.h
 	$(CC) -c $(CFLAGS) autograder.cpp
