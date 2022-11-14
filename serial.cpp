@@ -45,7 +45,8 @@ int main( int argc, char **argv )
     //  simulate a number of time steps
     //
     double simulation_time = read_timer( );
-	
+	int max_size = -1;
+
     for( int step = 0; step < NSTEPS; step++ )
     {
 	    navg = 0;
@@ -99,9 +100,9 @@ int main( int argc, char **argv )
         }
     }
     simulation_time = read_timer( ) - simulation_time;
+    printf("max bin size = %d\n", max_size);
     
     printf( "n = %d, simulation time = %g seconds", n, simulation_time);
-
     if( find_option( argc, argv, "-no" ) == -1 )
     {
       if (nabsavg) absavg /= nabsavg;
