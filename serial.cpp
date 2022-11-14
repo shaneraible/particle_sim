@@ -55,29 +55,20 @@ int main( int argc, char **argv )
         BinGrid bingrid(sn, sn, s);
         bingrid.add_particles_to_bins(n, particles);
 
-        int min_r=-1, min_c=-1, min_n=-1, min_p=-1;
-        int sum = (n-1)*(n)/2;
 
         for(int i=0; i<n; i++){
             particles[i].ax = particles[i].ay = 0;
             int bin_r = round(double(particles[i].y)/s*(sn-1));
             int bin_c = round(double(particles[i].x)/s*(sn-1));
 
-            for(int r = max(bin_r - 1, 0); r <= min(bin_r+1, sn - 1); r ++)
+            for(int r = max_common(bin_r - 1, 0); r <= min_common(bin_r+1, sn - 1); r ++)
             {
-                for(int c = max(bin_c - 1, 0); c <= min(bin_c+1, sn - 1); c++)
+                for(int c = max_common(bin_c - 1, 0); c <= min_common(bin_c+1, sn - 1); c++)
                 {
-                    auto neighbor = bingrid.bins[r*sn + c];
+                    std::vector<int> neighbor = bingrid.bins[r*sn + c];
                     // printf("Neighbor index = %d with size: %d\n", r+c*sn, neighbor.size());
                     for(int j = 0; j < neighbor.size(); j ++){
-                        int k = dmin;
                         apply_force(particles[i], particles[neighbor[j]], &dmin, &davg, &navg);
-                        if(dmin<k){
-                            min_r = r;
-                            min_c = c;
-                            min_n = neighbor[j];
-                            min_p = i;
-                        }
                     }
                 }
             }

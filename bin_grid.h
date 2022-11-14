@@ -11,7 +11,7 @@ class BinGrid{
     double size;
 
     public:
-    std::vector<std::vector<int>> bins;
+    std::vector<std::vector<int> > bins;
 
     BinGrid(int x, int y, double size);
     void add_particles_to_bins(int num_particles, particle_t *particles);

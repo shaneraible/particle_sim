@@ -8,8 +8,15 @@
 #include <math.h>
 #include <time.h>
 #include <sys/time.h>
-inline int min( int a, int b ) { return a < b ? a : b; }
-inline int max( int a, int b ) { return a > b ? a : b; }
+
+#define density 0.0005
+#define mass    0.01
+#define cutoff  0.01
+#define min_r   (cutoff/100)
+#define dt      0.0005
+
+inline int min_common( int a, int b ) { return a < b ? a : b; }
+inline int max_common( int a, int b ) { return a > b ? a : b; }
 
 //
 //  saving parameters
