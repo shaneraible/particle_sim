@@ -42,6 +42,54 @@ __device__ void rebin_gpu(particle_t * particles, bin_t * bins, int n, int bins_
 
 }
 
+// __global__ void compute_forces_gpu(particle_t * particles, bin_t * bins, int n, int bins_per_dim, int size)
+// {
+//     // Get thread (particle) ID
+//     int thread = threadIdx.x + blockIdx.x * blockDim.x;
+//     if(thread >= n) return;
+
+//     int i = thread / bins_per_dim;
+//     int j = thread % bins_per_dim;
+
+//     int block_num = i*bins_per_dim+j;
+//     bin_t &current_bin = bins[block_num];
+
+//     for (int k = 0; k < current_bin.size; k++){
+//         current_bin.particles[k].ax = current_bin.particles[k].ay = 0;
+//     }
+
+    
+//     // zero out acceleration
+//     // current_bin.particles[particle_idx].ax = current_bin.particles[particle_idx].ay = 0;
+//     // for (int i = 0; i < current_bin.size; i++){
+//     //     int bin_r = round(double(particles[i].y)/size*(bins_per_dim-1));
+//     //     int bin_c = round(double(particles[i].x)/size*(bins_per_dim-1));
+
+//     //     for(int r = max(bin_r - 1, 0); r <= min(bin_r+1, bins_per_dim - 1); r ++)
+//     //     {
+//     //         for(int c = max(bin_c - 1, 0); c <= min(bin_c+1, bins_per_dim - 1); c++)
+//     //         {
+//     //             bin_t &neighbor = bins[r*bins_per_dim + c];
+//     //             //forces within this bin
+//     //             for (int j = 0; j < neighbor.size; j++){
+//     //                 if(threadIdx.x!=j) apply_force_gpu(current_bin.particles[i], neighbor.particles[j]);
+//     //             }
+//     //         }
+//     //     }
+//     // } 
+
+//     //forces within this bin
+//     for (int i = 0; i < current_bin.size; i++){
+//       for (int j = 0; j < current_bin.size; j++){
+//         if(threadIdx.x!=j) apply_force_gpu(current_bin.particles[i], current_bin.particles[j]);
+//       }
+//     }   
+
+//     // for(int j = 0 ; j < n ; j++)
+//     //     apply_force_gpu(particles[tid], particles[j]);
+
+// }
+
 __global__ void compute_forces_gpu(particle_t * particles, bin_t * bins, int n, int bins_per_dim, int size)
 {
     // Get thread (particle) ID
@@ -54,50 +102,28 @@ __global__ void compute_forces_gpu(particle_t * particles, bin_t * bins, int n, 
     int block_num = i*bins_per_dim+j;
     bin_t &current_bin = bins[block_num];
 
-    for (int k = 0; k < current_bin.size; k++){
-        current_bin.particles[k].ax = current_bin.particles[k].ay = 0;
+    //set this particle's acceleration to 0
+    particles[thread].ax = particles[thread].ay = 0;
+
+    //loop through all particles in the current bin and apply force
+    for(int k = 0; k < current_bin.size; k++){
+        apply_force_gpu(particles[thread], current_bin.particles[k]);
     }
-
-    
-    // zero out acceleration
-    // current_bin.particles[particle_idx].ax = current_bin.particles[particle_idx].ay = 0;
-    // for (int i = 0; i < current_bin.size; i++){
-    //     int bin_r = round(double(particles[i].y)/size*(bins_per_dim-1));
-    //     int bin_c = round(double(particles[i].x)/size*(bins_per_dim-1));
-
-    //     for(int r = max(bin_r - 1, 0); r <= min(bin_r+1, bins_per_dim - 1); r ++)
-    //     {
-    //         for(int c = max(bin_c - 1, 0); c <= min(bin_c+1, bins_per_dim - 1); c++)
-    //         {
-    //             bin_t &neighbor = bins[r*bins_per_dim + c];
-    //             //forces within this bin
-    //             for (int j = 0; j < neighbor.size; j++){
-    //                 if(threadIdx.x!=j) apply_force_gpu(current_bin.particles[i], neighbor.particles[j]);
-    //             }
-    //         }
-    //     }
-    // } 
-
-    // //forces within this bin
-    for (int i = 0; i < current_bin.size; i++){
-      for (int j = 0; j < current_bin.size; j++){
-        if(threadIdx.x!=j) apply_force_gpu(current_bin.particles[i], current_bin.particles[j]);
-      }
-    }   
-
-    // for(int j = 0 ; j < n ; j++)
-    //     apply_force_gpu(particles[tid], particles[j]);
 
 }
 
-__global__ void move_gpu (particle_t * particles, int n, double size)
+__global__ void move_gpu (bin_t * bins, int n, double size, int bins_per_dim)
 {
 
     // Get thread (particle) ID
-    int tid = threadIdx.x + blockIdx.x * blockDim.x;
-    if(tid >= n) return;
+    int bid = blockIdx.x * blockDim.x;
+    if(bid>bins_per_dim*bins_per_dim) return;
 
-    particle_t * p = &particles[tid];
+    bin_t *curr = &bins[bid];
+
+    if(threadIdx.x>=curr->size) return;
+
+    particle_t * p = &curr->particles[threadIdx.x];
     //
     //  slightly simplified Velocity Verlet integration
     //  conserves energy better than explicit Euler method
@@ -211,7 +237,7 @@ int main( int argc, char **argv )
         //
         //  move particles
         //
-	    move_gpu <<< blks, NUM_THREADS >>> (d_particles, n, size);
+	    move_gpu <<< blks, NUM_THREADS >>> (bins_gpu, n, size, bins_per_dim);
         
         //
         //  save if necessary
@@ -219,8 +245,8 @@ int main( int argc, char **argv )
         if( fsave && (step%SAVEFREQ) == 0 ) {
 	        // Copy the particles back to the CPU
             cudaMemcpy(particles, d_particles, n * sizeof(particle_t), cudaMemcpyDeviceToHost);
-            
             cudaMemcpy(bins, bins_gpu, bins_per_dim*bins_per_dim*sizeof(bin_t), cudaMemcpyDeviceToHost);
+
             int count = 0;
             for (int p = 0; p < bins_per_dim; p++){
                 for (int q = 0; q < bins_per_dim; q++){
@@ -232,11 +258,14 @@ int main( int argc, char **argv )
             }
 
             save( fsave, n, particles);
-            cudaMemset(bins_gpu, 0, bins_per_dim * bins_per_dim * sizeof(bin_t));
-            init_bins(bins, particles, n, bins_per_dim, size);
-            cudaMemcpy(bins_gpu, bins, bins_per_dim * bins_per_dim * sizeof(bin_t), cudaMemcpyHostToDevice);
-
 	    }
+
+        cudaMemset(bins_gpu, 0, bins_per_dim * bins_per_dim * sizeof(bin_t));
+        init_bins(bins, particles, n, bins_per_dim, size);
+        cudaMemcpy(bins_gpu, bins, bins_per_dim * bins_per_dim * sizeof(bin_t), cudaMemcpyHostToDevice);
+        cudaThreadSynchronize();
+
+
     }
     cudaThreadSynchronize();
     simulation_time = read_timer( ) - simulation_time;
